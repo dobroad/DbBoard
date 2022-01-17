@@ -2,8 +2,6 @@ package com.lee.board;
 
 import java.sql.Connection;
 import java.sql.DriverManager;
-import java.sql.PreparedStatement;
-import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.List;
@@ -74,7 +72,7 @@ public class App {
 
 			int id = DBUtil.insert(conn, sql);
 
-			System.out.printf("%d번 게시물이 생성되었습니다.\n", id);
+			System.out.printf("%d번 게시글이 생성되었습니다.\n", id);
 
 		} else if (cmd.equals("article list")) { // cmd.equals => 문장비교
 			System.out.println("== 게시글 목록 ==");
@@ -91,7 +89,7 @@ public class App {
 			}
 
 			if (articles.size() == 0) {
-				System.out.println("게시물이 존재하지 않습니다.");
+				System.out.println("게시글이 존재하지 않습니다.");
 				return 0;
 			}
 
@@ -100,12 +98,30 @@ public class App {
 				System.out.printf("%d / %s\n", article.id, article.title);
 			}
 
-		} else if (cmd.startsWith("article modify")) { // cmd.startsWith => 시작하는 문장 대조
+		} else if (cmd.startsWith("article modify ")) { // cmd.startsWith => 시작하는 문장 대조
+
+			boolean isInt = cmd.split(" ")[2].matches("-?\\d+"); // .matches("-?\\d+") => 정수인지 문자열인지 판단
+			if (!isInt) {
+				System.out.println("게시글의 ID를 숫자로 입력해주세요.");
+				return 0;
+			}
 
 			int id = Integer.parseInt(cmd.split(" ")[2].trim()); // cmd.split(" "); => article modify 명령어를 공백을 기준으로
 																	// 나눠서 배열로 저장
 																	// [2] => 공백을 기준으로 배열로 나누면 id가 들어가는 자리의 index
 																	// .trim() => 공백 제거
+
+			SecSql sql = new SecSql();
+			sql.append("SELECT COUNT(*)");
+			sql.append("FROM article");
+			sql.append("WHERE id = ?", id);
+
+			int articlesCount = DBUtil.selectRowIntValue(conn, sql);
+			if (articlesCount == 0) {
+				System.out.printf("%d번 게시글이 존재하지 않습니다.\n", id);
+				return 0;
+			}
+
 			String title;
 			String body;
 
@@ -115,7 +131,7 @@ public class App {
 			System.out.printf("새 내용: ");
 			body = input.nextLine();
 
-			SecSql sql = new SecSql();
+			sql = new SecSql();
 			sql.append("UPDATE article");
 			sql.append("SET regDate = NOW()");
 			sql.append(", updateDate = NOW()");
@@ -127,13 +143,30 @@ public class App {
 
 			System.out.printf("%d번 글이 수정되었습니다.\n", id);
 
-		} else if (cmd.startsWith("article delete")) { // cmd.startsWith => 시작하는 문장 대조
+		} else if (cmd.startsWith("article delete ")) { // cmd.startsWith => 시작하는 문장 대조
+
+			boolean isInt = cmd.split(" ")[2].matches("-?\\d+"); // .matches("-?\\d+") => 정수인지 문자열인지 판단
+			if (!isInt) {
+				System.out.println("게시글의 ID를 숫자로 입력해주세요.");
+				return 0;
+			}
 
 			int id = Integer.parseInt(cmd.split(" ")[2].trim());
-			
-			System.out.println("== 게시글 삭제 ==");
 
 			SecSql sql = new SecSql();
+			sql.append("SELECT COUNT(*)");
+			sql.append("FROM article");
+			sql.append("WHERE id = ?", id);
+
+			int articlesCount = DBUtil.selectRowIntValue(conn, sql);
+			if (articlesCount == 0) {
+				System.out.printf("%d번 게시글이 존재하지 않습니다.\n", id);
+				return 0;
+			}
+
+			System.out.println("== 게시글 삭제 ==");
+
+			sql = new SecSql();
 			sql.append("DELETE FROM article");
 			sql.append("WHERE id = ?", id);
 
@@ -141,6 +174,221 @@ public class App {
 
 			System.out.printf("%d번 글이 삭제되었습니다.\n", id);
 
+		} else if (cmd.startsWith("article detail ")) { // cmd.startsWith => 시작하는 문장 대조
+
+			boolean isInt = cmd.split(" ")[2].matches("-?\\d+"); // .matches("-?\\d+") => 정수인지 문자열인지 판단
+			if (!isInt) {
+				System.out.println("게시글의 ID를 숫자로 입력해주세요.");
+				return 0;
+			}
+
+			int id = Integer.parseInt(cmd.split(" ")[2].trim());
+
+			SecSql sql = new SecSql();
+			sql.append("SELECT COUNT(*)");
+			sql.append("FROM article");
+			sql.append("WHERE id = ?", id);
+
+			int articlesCount = DBUtil.selectRowIntValue(conn, sql);
+			if (articlesCount == 0) {
+				System.out.printf("%d번 게시글이 존재하지 않습니다.\n", id);
+				return 0;
+			}
+
+			System.out.println("== 게시글 상세내용 ==");
+
+			sql = new SecSql();
+			sql.append("SELECT * FROM article");
+			sql.append("WHERE id = ?", id);
+			sql.append("ORDER BY id DESC");
+
+			Map<String, Object> articleMap = DBUtil.selectRow(conn, sql);
+
+			Article article = new Article(articleMap);
+			System.out.printf("번호: %d\n", article.id);
+			System.out.printf("등록 날짜: %s", article.regDate);
+			System.out.printf("수정 날짜: %s\n", article.updateDate);
+			System.out.printf("제목: %s\n", article.title);
+			System.out.printf("내용: %s\n", article.body);
+
+		} else if (cmd.equals("member join")) { // cmd.equals => 문장비교
+			String loginId;
+			String loginPw;
+			String loginPwConfirm;
+			String name;
+			
+			System.out.println("== 회원가입 ==");
+						
+			SecSql sql;
+			
+			int joinTry = 0;
+			
+			while(true) {
+				sql = new SecSql();
+				
+				if(joinTry >= 3) {
+					System.out.println("회원가입을 다시 시도해주세요.");
+					return 0;
+				}
+				
+				System.out.printf("로그인 아이디: ");
+				loginId = input.nextLine();
+				
+				if(loginId.length() == 0) {
+					System.out.println("아이디를 입력해주세요.");
+					joinTry++;
+					continue;
+				}
+				
+				sql.append("SELECT COUNT(*) FROM `member`");
+				sql.append("WHERE loginId = ?", loginId);
+				
+				int memberCnt = DBUtil.selectRowIntValue(conn, sql);
+				if(memberCnt > 0) {
+					System.out.println("이미 존재하는 아이디입니다.");
+					joinTry++;
+					continue;
+				}
+				
+				break;
+			}
+			
+			joinTry = 0;
+			
+			while(true) {
+				if(joinTry >= 3) {
+					System.out.println("회원가입을 다시 시도해주세요.");
+					return 0;
+				}
+				
+				System.out.printf("로그인 비밀번호: ");
+				loginPw = input.nextLine();
+				
+				if(loginPw.length() == 0) {
+					System.out.println("비밀번호를 입력해주세요.");
+					joinTry++;
+					continue;
+				}
+				
+				while(true) {
+					System.out.printf("로그인 비밀번호 확인: ");
+					loginPwConfirm = input.nextLine();
+					if(loginPwConfirm.length() == 0) {
+						System.out.println("비밀번호 확인을 입력해주세요.");
+						continue;
+					}
+					
+					break;
+				}
+				
+				if(!loginPw.equals(loginPwConfirm)) {
+					System.out.println("입력된 비밀번호가 일치하지 않습니다.");
+					joinTry++;
+					continue;
+				}
+				
+				break;
+			}
+			
+			while(true) {
+				System.out.printf("이름: ");
+				name = input.nextLine();
+				if(name.length() == 0) {
+					System.out.println("이름을 입력해주세요.");
+					continue;
+				}
+				
+				break;
+			}
+			
+			sql = new SecSql();
+			sql.append("INSERT INTO member");
+			sql.append("SET regDate = NOW()");
+			sql.append(", updateDate = NOW()");
+			sql.append(", loginId = ?", loginId);
+			sql.append(", loginPw = ?", loginPw);
+			sql.append(", name = ?", name);
+			
+			DBUtil.insert(conn, sql);
+			
+			System.out.printf("%s님 환영합니다.\n", name);
+		
+			
+		} else if (cmd.equals("member login")) { // cmd.equals => 문장비교
+			String loginId;
+			String loginPw;
+			
+			System.out.println("== 로그인 ==");
+			
+			SecSql sql;
+			
+			int joinTry = 0;
+			
+			while(true) {
+				sql = new SecSql();
+				
+				if(joinTry >= 3) {
+					System.out.println("로그인을 다시 시도해주세요.");
+					return 0;
+				}
+				
+				System.out.printf("로그인 아이디: ");
+				loginId = input.nextLine();
+				if(loginId.length() == 0) {
+					System.out.println("아이디를 입력해주세요.");
+					joinTry++;
+					continue;
+				}
+
+				sql.append("SELECT COUNT(*) FROM member");
+				sql.append("WHERE loginId = ?", loginId);
+				
+				int memberCnt = DBUtil.selectRowIntValue(conn, sql);
+				if(memberCnt == 0) {
+					System.out.println("아이디가 존재하지 않습니다.");
+					joinTry++;
+					continue;
+				}
+				
+				break;
+			}
+			
+			joinTry = 0;
+			
+			while(true) {
+				if(joinTry >= 3) {
+					System.out.println("로그인을 다시 시도해주세요.");
+					return 0;
+				}
+				
+				System.out.printf("로그인 비밀번호: ");
+				loginPw = input.nextLine();
+				if(loginPw.length() == 0) {
+					System.out.println("비밀번호를 입력해주세요.");
+					joinTry++;
+					continue;
+				}
+				
+				break;
+			}
+			
+			// 데이터를 가져온다
+			// 편하게 사용하기 위해 Member 객체 생성
+			// Member 객체에서 데이터를 형태에 맞게 조정
+			// Member 인스턴스를 만들어서 비밀번호 값 조회
+			sql = new SecSql();
+			sql.append("SELECT * FROM member");
+			sql.append("WHERE loginId = ?", loginId);
+			
+			Map<String, Object> memberMap = DBUtil.selectRow(conn, sql);
+			Member member = new Member(memberMap);
+			if(!member.loginPw.equals(loginPw)) {
+				System.out.println("비밀번호가 일치하지 않습니다.");
+				return 0;
+			}
+			
+			System.out.printf("%s님 환영합니다.\n", member.name);			
+						
 		} else if (cmd.equals("system exit")) {
 			System.out.println("프로그램을 종료합니다.");
 			return -1;
