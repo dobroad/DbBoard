@@ -11,3 +11,6 @@ CREATE TABLE article(
 );
 
 DESC article;
+
+SELECT *
+FROM article;
